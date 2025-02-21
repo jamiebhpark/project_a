@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:13-alpine
+    container_name: projecta-postgres
+    volumes:
+      - ./docker/db-data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "15432:5432"
+    environment:
+      - POSTGRES_DB=projectadb
+      - POSTGRES_USER=projecta
+      - POSTGRES_PASSWORD=padb
+
+  redis:
+    image: redis:6
+    container_name: projecta-redis
+    ports:
+      - "16379:6379"
