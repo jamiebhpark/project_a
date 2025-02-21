@@ -1,7 +1,8 @@
 'use client';
 
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Pie, Line } from 'react-chartjs-2';
 import {
@@ -15,83 +16,76 @@ import {
   LineElement,
 } from 'chart.js';
 import { FiArrowUp, FiArrowDown, FiMessageCircle, FiShare } from 'react-icons/fi';
+import { usePost, Comment } from '../../hooks/usePost';
+import { NewCommentForm } from '../../../components/NewCommentForm';
+import { CommentItem, ExtendedComment } from '../../../components/CommentItem';
 
-// 차트 등록
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement);
 
-// 게시글 및 댓글 인터페이스
-interface Post {
-  id: number;
-  title: string;
-  content: string;
-  postedBy: string;
-  time: string;
-  upvotes: number;
-  downvotes: number;
-  views: number;
-  mediaUrl?: string;
-  comments: Comment[];
-}
-
-interface Comment {
-  id: number;
-  author: string;
-  content: string;
-  time: string;
-}
-
-// 더미 데이터 예시
-const dummyPost: Post = {
-  id: 1,
-  title: "Sample Post Title",
-  content:
-    "This is the detailed content of the post. It includes insightful analysis and comprehensive information. Users can read the full post along with additional media and comments.",
-  postedBy: "Alice",
-  time: "3 hours ago",
-  upvotes: 300,
-  downvotes: 50,
-  views: 1200,
-  mediaUrl: "https://via.placeholder.com/600x300",
-  comments: [
-    { id: 1, author: "Bob", content: "Great post! Really enjoyed it.", time: "2 hours ago" },
-    { id: 2, author: "Charlie", content: "I totally agree with your points.", time: "1 hour ago" },
-  ],
-};
-
 export default function PostDetailPage() {
-  // postId 변수 제거: dummyPost를 사용
-  const [upvotes, setUpvotes] = useState(dummyPost.upvotes);
-  const [downvotes, setDownvotes] = useState(dummyPost.downvotes);
-  const [views] = useState(dummyPost.views);
-  const post = { ...dummyPost, upvotes, downvotes };
+  const params = useParams();
+  const postId = params.postId as string;
 
-  // Distribution 토글 상태
+  const { data: post, isLoading, error } = usePost(postId);
+
+  const [upvotes, setUpvotes] = useState(0);
+  const [downvotes, setDownvotes] = useState(0);
   const [showDistribution, setShowDistribution] = useState(false);
+  const [comments, setComments] = useState<ExtendedComment[]>([]);
+  const [showCommentForm, setShowCommentForm] = useState(false);
 
-  // 파이 차트 데이터 (Up_Vote / Down_Vote 분포)
+  useEffect(() => {
+    if (post) {
+      setUpvotes(post.upvotes);
+      setDownvotes(post.downvotes);
+      // 각 댓글에 기본적으로 upvotes, downvotes 0 할당 (ExtendedComment로 변환)
+      setComments(post.comments.map(c => ({ ...c, upvotes: 0, downvotes: 0 })));
+    }
+  }, [post]);
+
+  if (isLoading) return <div className="text-center mt-10">Loading...</div>;
+  if (error || !post) return <div className="text-center mt-10">Error loading post.</div>;
+
   const pieData = {
     labels: ['Up_Vote', 'Down_Vote'],
     datasets: [
       {
-        data: [post.upvotes, post.downvotes],
+        data: [upvotes, downvotes],
         backgroundColor: ['#4CAF50', '#F44336'],
         hoverBackgroundColor: ['#66BB6A', '#EF5350'],
       },
     ],
   };
 
-  // 라인 차트 데이터 (최근 6시간 동안의 View 추세 예시)
   const lineData = {
     labels: ['6h ago', '5h ago', '4h ago', '3h ago', '2h ago', '1h ago'],
     datasets: [
       {
         label: 'View Trend',
-        data: [800, 900, 1000, 1100, 1150, views],
+        data: [800, 900, 1000, 1100, 1150, post.views],
         fill: false,
         borderColor: '#2196F3',
         tension: 0.1,
       },
     ],
+  };
+
+  const addNewComment = (
+    content: string,
+    imageFile?: File,
+    gifUrl?: string,
+    linkUrl?: string
+  ) => {
+    const newComment: ExtendedComment = {
+      id: Date.now(),
+      author: "CurrentUser", // 실제 로그인 사용자 정보로 대체
+      content,
+      time: "Just now",
+      upvotes: 0,
+      downvotes: 0,
+    };
+    setComments([newComment, ...comments]);
+    setShowCommentForm(false);
   };
 
   return (
@@ -110,12 +104,12 @@ export default function PostDetailPage() {
       {/* 첨부 이미지/미디어 */}
       {post.mediaUrl && (
         <div className="mb-4">
-          <Image
-            src={post.mediaUrl}
-            alt="Post media"
-            width={600}
-            height={300}
-            className="w-full rounded"
+          <Image 
+            src={post.mediaUrl} 
+            alt="Post media" 
+            width={600} 
+            height={300} 
+            className="w-full rounded" 
           />
         </div>
       )}
@@ -143,10 +137,13 @@ export default function PostDetailPage() {
           <span>Down_Vote</span>
           <span className="ml-1">{downvotes}</span>
         </button>
-        <button className="flex items-center text-gray-600 hover:text-blue-500">
+        <button
+          onClick={() => setShowCommentForm(!showCommentForm)}
+          className="flex items-center text-gray-600 hover:text-blue-500"
+        >
           <FiMessageCircle className="mr-1" size={18} />
           <span>Comments</span>
-          <span className="ml-1">{post.comments.length}</span>
+          <span className="ml-1">{comments.length}</span>
         </button>
         <button className="flex items-center text-gray-600 hover:text-blue-500">
           <FiShare className="mr-1" size={18} />
@@ -164,7 +161,7 @@ export default function PostDetailPage() {
         </button>
       </div>
       
-      {/* Distribution 차트 영역: 작은 크기로 가로 2개 배치 */}
+      {/* Distribution 차트 영역 */}
       {showDistribution && (
         <div className="flex flex-col md:flex-row gap-4 mb-6">
           <div className="w-full md:w-1/2 h-48">
@@ -182,17 +179,17 @@ export default function PostDetailPage() {
         </div>
       )}
       
-      {/* 댓글 섹션 */}
-      <div className="mb-6">
-        <h2 className="text-xl font-bold mb-2">Comments</h2>
-        {post.comments.map((comment) => (
-          <div key={comment.id} className="border-b py-2">
-            <div className="text-sm font-semibold">
-              {comment.author} <span className="text-gray-500">· {comment.time}</span>
-            </div>
-            <div className="text-sm text-gray-700">{comment.content}</div>
-          </div>
-        ))}
+      {/* Comments 섹션 */}
+      <div className="mb-6 pt-6 border-t">
+        {/* 댓글 작성 폼을 댓글 섹션 최상단에 표시 */}
+        {showCommentForm && (
+          <NewCommentForm onSubmit={addNewComment} onCancel={() => setShowCommentForm(false)} />
+        )}
+        <div className="space-y-4 mt-4">
+          {comments.map((comment) => (
+            <CommentItem key={comment.id} comment={comment} />
+          ))}
+        </div>
       </div>
       
       {/* 뒤로가기 링크 */}
